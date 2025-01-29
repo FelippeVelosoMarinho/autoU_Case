@@ -9,10 +9,36 @@ class ContaPagarReceberResponse(BaseModel): # DTO de response
     description: str
     value: Decimal
     type: str # PAGAR, RECEBER
+    
+class ContaPagarReceberRequest(BaseModel): # DTO de request
+    description: str
+    value: Decimal
+    type: str # PAGAR, RECEBER
 
 @router.get("/")
 def listar_contas():
-    return [
-        {"conta1": "conta1"},
-        {"conta2": "conta2"},
+    contas = [
+        ContaPagarReceberResponse(
+          id=1,
+          description="Aluguel",
+          value=Decimal("1000.50"),
+          type="PAGAR"  
+        ),
+        ContaPagarReceberResponse(
+          id=2,
+          description="Salário",
+          value=Decimal("5000"),
+          type="RECEBER"  
+        ),
     ]
+    
+    return [conta.model_dump() for conta in contas] 
+    
+@router.post("/", response_model=ContaPagarReceberResponse, status_code=201)
+def criar_conta(conta: ContaPagarReceberRequest):
+    return ContaPagarReceberResponse(
+        id=3,
+        description=conta.description,
+        value=conta.value,
+        type=conta.type
+    )
