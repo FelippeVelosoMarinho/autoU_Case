@@ -19,10 +19,10 @@ app.add_middleware(
     allow_headers=["*"],  # Permite todos os headers HTTP
 )
 
-api_key = os.getenv("API_KEY")
+openai_key = os.getenv("OPENAI_KEY")
 
 # criar requisição
-headers = {"Authorization":  f"Bearer {api_key}"}
+headers = {"Authorization":  f"Bearer {openai_key}"}
 link = "https://api.openai.com/v1/models"
 requisicao = requests.get(link, headers=headers)
 

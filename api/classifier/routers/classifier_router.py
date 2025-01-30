@@ -3,12 +3,21 @@ import PyPDF2
 import os
 import requests
 from dotenv import load_dotenv
+from transformers import pipeline
+from huggingface_hub import login
 
 from classifier.routers.model import IsProductive, TypeDoc, router, UploadFile, Union, BaseModel
 
 load_dotenv()
-API_KEY = os.getenv("API_KEY")
+OPENAI_KEY = os.getenv("OPENAI_KEY")
+HF_API_KEY = os.getenv("MISTRAL_KEY")
 GPT_MODEL = "gpt-3.5-turbo-0125"  # Modelo mais barato disponível
+HF_MODEL_URL = "mistralai/Mistral-7B-Instruct-v0.3" # URL do modelo Mistral-7B
+
+login(HF_API_KEY)
+
+chatbot = pipeline("text-generation", model=HF_MODEL_URL, token=HF_API_KEY)
+
 
 # Definição do modelo para aceitar JSON
 class MessageRequest(BaseModel):
@@ -60,11 +69,11 @@ def classify(msg: str) -> IsProductive:
     return IsProductive.PRODUCTIVE if len(msg.strip()) > 50 else IsProductive.IMPRODUCTIVE
 
 # Função para gerar resposta via OpenAI
-def generate_response(content: str, classification: IsProductive) -> str:
+def generate_response_gpt(content: str, classification: IsProductive) -> str:
     prompt = f"O seguinte conteúdo foi classificado como {classification.name.lower()}:\n\n{content}\n\nGere uma resposta curta e objetiva explicando o motivo."
 
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {OPENAI_KEY}",
         "Content-Type": "application/json"
     }
 
@@ -85,24 +94,30 @@ def generate_response(content: str, classification: IsProductive) -> str:
     # Mostra a resposta da OpenAI para entender o erro
     raise HTTPException(status_code=response.status_code, detail=f"Erro OpenAI: {response.text}")
 
+def generate_response_mistral(prompt: str, max_tokens: int = 100) -> str:
+    messages = [
+        {"role": "system", "content": "Você é um assistente de respostas automáticas para E-mails."},
+        {"role": "user", "content": prompt}
+    ]
+    
+    response = chatbot(messages, max_new_tokens=max_tokens)
 
-# Rota principal para responder ao usuário
-@router.post("/answer")
-async def answer(request: MessageRequest):
-    """Processa o conteúdo, classifica e gera uma resposta com IA."""
+    if isinstance(response, list) and len(response) > 0:
+        return response[0]["generated_text"]  # Retorna o texto gerado
+    return "Resposta não encontrada."
+
+# Rota para responder ao usuário usando gpt
+@router.post("/answer-gpt")
+async def answerGpt(request: MessageRequest):
+    """Processa o conteúdo, classifica e gera uma resposta com o modelo gpt-3.5-turbo-0125 da OpenAI."""
     classification = classify(request.msg)
-    return generate_response(request.msg, classification)
-# @router.post("/answer")
-# async def answer(
-#     msg: Union[str, UploadFile] = Form(...),
-#     type: TypeDoc = Form(...)
-# ):
-#     # Verifica se é um arquivo
-#     if isinstance(msg, UploadFile):
-#         content = await msg.read()
-#         content = content.decode("utf-8")  # Converte bytes para string
-#     else:
-#         content = msg
+    return generate_response_gpt(request.msg, classification)
 
-#     classification = classify(content)
-#     return generate_response(content, classification)
+# Rota para responder ao usuário usando Mistral-7B
+@router.post("/answer-mistral")
+async def answerMistral(request: MessageRequest):
+    """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B-v0.1 da Mistral AI."""
+    classification = classify(request.msg)
+    print(request.msg)
+    return generate_response_mistral(request.msg)
+
