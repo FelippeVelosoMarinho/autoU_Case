@@ -1,20 +1,31 @@
 import { api } from "../../../api";
 
-type DocType = {
-    STR: string;
-    PDF: string;
-    TXT: string;
-}
-
 interface VerifyEmailProps {
     msg?: string;
-    type: DocType;
+    type: "STR" | "PDF" | "TXT";
+    file?: File;
 }
 
-export async function verifyEmail(body: VerifyEmailProps) {
+export async function verifyEmail({ msg, type, file }: VerifyEmailProps) {
     try {
-        await api.post("/classifier/answer", body);
+        let response;
+
+        if (type === "STR") {
+            response = await api.post("/classifier/answer", { msg, type });
+        } else if (file) {
+            const formData = new FormData();
+            formData.append("msg", file);
+            formData.append("type", type);
+
+            response = await api.post("/classifier/answer", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+        } else {
+            throw new Error("Arquivo não encontrado.");
+        }
+
+        return response.data;
     } catch (err: any) {
-        return err.response.data
+        return err.response?.data || "Erro desconhecido";
     }
 }

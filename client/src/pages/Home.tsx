@@ -39,11 +39,10 @@ const Home: React.FC = () => {
 
     const handleVerifyEmail = async () => {
         if (inputType === "text") {
-            await verifyEmail({ msg: emailContent, type: { STR: emailContent, PDF: "", TXT: "" } });
+            await verifyEmail({ msg: emailContent, type: "STR" });
         } else if (uploadedFile) {
-            const formData = new FormData();
-            formData.append("file", uploadedFile);
-            await verifyEmail({ msg: "", type: { STR: "", PDF: uploadedFile.type.includes("pdf") ? formData : "", TXT: uploadedFile.type.includes("text") ? formData : "" } });
+            const fileType = uploadedFile.type.includes("pdf") ? "PDF" : "TXT";
+            await verifyEmail({ type: fileType, file: uploadedFile });
         }
     };
 

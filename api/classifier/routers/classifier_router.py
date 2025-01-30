@@ -1,18 +1,23 @@
-from fastapi import  HTTPException
+from fastapi import  HTTPException, Form
 import PyPDF2
 import os
+import requests
+from dotenv import load_dotenv
 
-from classifier.routers.model import IsProductive, TypeDoc, router, UploadFile, Union
+from classifier.routers.model import IsProductive, TypeDoc, router, UploadFile, Union, BaseModel
+
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
+GPT_MODEL = "gpt-3.5-turbo-0125"  # Modelo mais barato disponível
+
+# Definição do modelo para aceitar JSON
+class MessageRequest(BaseModel):
+    msg: str
+    type: TypeDoc
+
 # Função para processar o conteúdo do arquivo com base no tipo
 def process_file(file_path: str, file_type: TypeDoc) -> str:
-    """
-    Processa o conteúdo do arquivo com base no tipo especificado.
-
-    - `file_path`: Caminho para o arquivo.
-    - `file_type`: Tipo do arquivo (PDF ou TXT).
-
-    Retorna o conteúdo do arquivo como string.
-    """
+    """Processa arquivos PDF ou TXT e retorna seu conteúdo como string."""
     if file_type == TypeDoc.PDF:
         try:
             with open(file_path, "rb") as pdf_file:
@@ -20,74 +25,84 @@ def process_file(file_path: str, file_type: TypeDoc) -> str:
                 return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Erro ao processar PDF: {e}")
+    
     elif file_type == TypeDoc.TXT:
         try:
             with open(file_path, "r", encoding="utf-8") as txt_file:
                 return txt_file.read()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Erro ao processar TXT: {e}")
-    else:
-        raise HTTPException(status_code=400, detail="Tipo de arquivo não suportado para processamento.")
+    
+    raise HTTPException(status_code=400, detail="Tipo de arquivo não suportado para processamento.")
 
-# Rota para leitura do conteúdo
+# Rota para ler conteúdo de texto ou arquivo
 @router.post("/read", response_model=str)
 async def read(msg: Union[str, UploadFile], type: TypeDoc) -> str:
-    """
-    Lê o conteúdo do arquivo com base no tipo fornecido.
-
-    - `msg`: String direta ou arquivo enviado (UploadFile).
-    - `type`: Tipo do documento (STR, PDF ou TXT).
-    
-    Retorna o conteúdo do arquivo como string.
-    """
+    """Lê e retorna o conteúdo do texto ou arquivo enviado."""
     if type == TypeDoc.STR:
-        # Caso seja uma string direta
         if isinstance(msg, str):
             return msg
-        else:
-            raise HTTPException(status_code=400, detail="Esperava-se uma string para o tipo STR.")
+        raise HTTPException(status_code=400, detail="Esperava-se uma string para o tipo STR.")
 
-    elif type in [TypeDoc.PDF, TypeDoc.TXT]:
-        # Caso seja um arquivo enviado
-        if isinstance(msg, UploadFile):
-            file_location = f"temp_{msg.filename}"  # Salva o arquivo em local temporário
-            with open(file_location, "wb") as temp_file:
-                temp_file.write(await msg.read())  # Lê o conteúdo do arquivo enviado
-            
-            # Processa o arquivo e retorna o conteúdo
-            content = process_file(file_location, type)
-            
-            # Remove o arquivo temporário
-            os.remove(file_location)
-            return content
-        else:
-            raise HTTPException(status_code=400, detail=f"Esperava-se um arquivo para o tipo {type}.")
+    if isinstance(msg, UploadFile):
+        file_location = f"temp_{msg.filename}"
+        with open(file_location, "wb") as temp_file:
+            temp_file.write(await msg.read())
+        
+        content = process_file(file_location, type)
+        os.remove(file_location)  # Remove o arquivo temporário
+        return content
 
-    else:
-        raise HTTPException(status_code=400, detail="Tipo inválido fornecido.")
+    raise HTTPException(status_code=400, detail="Tipo inválido fornecido.")
 
-# Função para classificação da produtividade (template criado)
+# Função de classificação
 def classify(msg: str) -> IsProductive:
-    """
-    Classifica a mensagem como PRODUCTIVE ou IMPRODUCTIVE.
+    return IsProductive.PRODUCTIVE if len(msg.strip()) > 50 else IsProductive.IMPRODUCTIVE
 
-    - `msg`: Conteúdo a ser classificado.
-    
-    Retorna uma enumeração `IsProductive`.
-    """
-    # Template para a lógica de classificação (implementar depois)
-    if len(msg.strip()) > 0:
-        return IsProductive.PRODUCTIVE
-    else:
-        return IsProductive.IMPRODUCTIVE
+# Função para gerar resposta via OpenAI
+def generate_response(content: str, classification: IsProductive) -> str:
+    prompt = f"O seguinte conteúdo foi classificado como {classification.name.lower()}:\n\n{content}\n\nGere uma resposta curta e objetiva explicando o motivo."
 
-# Rota para responder com uma classificação (template criado)
-@router.get("/answer", response_model=str)
-def answer() -> str:
-    """
-    Retorna uma resposta baseada na classificação de produtividade.
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    Retorna a string representando o estado de produtividade.
-    """
-    # Placeholder para a lógica de resposta (implementar depois)
-    return "Answer logic not implemented yet."
+    data = {
+        "model": GPT_MODEL,
+        "messages": [
+            {"role": "system", "content": "Você é um assistente de análise de produtividade."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 30
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+
+    # Mostra a resposta da OpenAI para entender o erro
+    raise HTTPException(status_code=response.status_code, detail=f"Erro OpenAI: {response.text}")
+
+
+# Rota principal para responder ao usuário
+@router.post("/answer")
+async def answer(request: MessageRequest):
+    """Processa o conteúdo, classifica e gera uma resposta com IA."""
+    classification = classify(request.msg)
+    return generate_response(request.msg, classification)
+# @router.post("/answer")
+# async def answer(
+#     msg: Union[str, UploadFile] = Form(...),
+#     type: TypeDoc = Form(...)
+# ):
+#     # Verifica se é um arquivo
+#     if isinstance(msg, UploadFile):
+#         content = await msg.read()
+#         content = content.decode("utf-8")  # Converte bytes para string
+#     else:
+#         content = msg
+
+#     classification = classify(content)
+#     return generate_response(content, classification)
