@@ -3,82 +3,72 @@ import PyPDF2
 import os
 import requests
 from dotenv import load_dotenv
-from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer
+from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer, AutoModelForMaskedLM, TrainingArguments
 from huggingface_hub import login
 from ctransformers import AutoModelForCausalLM
 
-import pandas as pd
 from datasets import Dataset
-
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+
+import torch
+import pandas as pd
 
 from classifier.routers.model import IsProductive, TypeDoc, router, UploadFile, Union, BaseModel
 
 load_dotenv()
+BERT_MODEL_NAME = "neuralmind/bert-base-portuguese-cased"
+tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
 OPENAI_KEY = os.getenv("OPENAI_KEY")
 HF_API_KEY = os.getenv("MISTRAL_KEY")
 GPT_MODEL = "gpt-3.5-turbo-0125"  # Modelo mais barato disponível
-#HF_MODEL_URL = "mistralai/Mistral-7B-Instruct-v0.3" # URL do modelo Mistral-7B
-#HF_MODEL_URL = "./mistral_model" #os.path.abspath(os.path.join(os.path.dirname(__file__), "../../mistral_model"))
-
-HF_MODEL_URL = os.path.abspath("./api/mistral_model")
-print(f"Caminho absoluto do modelo: {HF_MODEL_URL}")
 
 login(HF_API_KEY)
 
-#chatbot = pipeline("text-generation", model=HF_MODEL_URL, token=HF_API_KEY)
+# Carregar Tokenizer e Modelo BERT para Classificação
+tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
 
-#BERT Variables
-# BERT_MODEL_NAME = "neuralmind/bert-base-portuguese-cased"
-# tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
-# model = AutoModelForSequenceClassification.from_pretrained(BERT_MODEL_NAME, num_labels=2) # 2 labels = SPAM e Não-SPAM.
+try:
+    model = AutoModelForSequenceClassification.from_pretrained("./bert-email-classifier")
+    print("Modelo BERT carregado com sucesso!")
+except Exception:
+    print("Modelo treinado não encontrado. Treinando um novo modelo...")
+    # Carregar e pré-processar os dados
+    df = pd.read_csv("emails.csv")
+    df = df.rename(columns={"EmailText": "text", "Label": "label"})
+    df["label"] = df["label"].map({"spam": 0, "ham": 1})  # 0 = improdutivo (spam), 1 = produtivo (ham)
+    
+    # Criar Dataset Hugging Face
+    dataset = Dataset.from_pandas(df)
+    train_test = dataset.train_test_split(test_size=0.2)
+    train_dataset, test_dataset = train_test["train"], train_test["test"]
 
-# # Carregar dataset (exemplo)
-# df = pd.read_csv("emails.csv")
+    # Tokenização dos textos
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], padding="max_length", truncation=True)
 
-# # Remover linhas vazias
-# df.dropna(inplace=True)
+    train_dataset = train_dataset.map(tokenize_function, batched=True)
+    test_dataset = test_dataset.map(tokenize_function, batched=True)
 
-# # Converter para dataset do Hugging Face
-# dataset = Dataset.from_pandas(df)
+    # Configurar treinamento
+    training_args = TrainingArguments(
+        output_dir="./results",
+        evaluation_strategy="epoch",
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        num_train_epochs=3,
+        weight_decay=0.01,
+        save_strategy="epoch",
+    )
 
-# # Dividir os dados
-# train_test_split = dataset.train_test_split(test_size=0.2)
-# train_dataset = train_test_split["train"]
-# test_dataset = train_test_split["test"]
+    model = AutoModelForSequenceClassification.from_pretrained(BERT_MODEL_NAME, num_labels=2)
+    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=test_dataset)
 
-# # Configurações do treinamento
-# training_args = TrainingArguments(
-#     output_dir="./results",
-#     evaluation_strategy="epoch",
-#     save_strategy="epoch",
-#     per_device_train_batch_size=8,
-#     per_device_eval_batch_size=8,
-#     num_train_epochs=3,
-#     weight_decay=0.01,
-#     logging_dir="./logs"
-# )
+    # Treinar o modelo
+    trainer.train()
 
-# # Criar o Trainer
-# trainer = Trainer(
-#     model=model,
-#     args=training_args,
-#     train_dataset=train_dataset,
-#     eval_dataset=test_dataset
-# )
-
-# # Treinar o modelo
-# trainer.train()
-
-# # Fazer previsões no conjunto de teste
-# predictions = trainer.predict(test_dataset)
-# preds = predictions.predictions.argmax(axis=-1)
-
-# # Calcular a acurácia
-# accuracy = accuracy_score(test_dataset["label"], preds)
-# print(f"Acurácia: {accuracy:.2f}")
-
+    # Salvar o modelo treinado
+    model.save_pretrained("./bert-email-classifier")
 # Definição do modelo para aceitar JSON
 class MessageRequest(BaseModel):
     msg: str
@@ -124,21 +114,12 @@ async def read(msg: Union[str, UploadFile], type: TypeDoc) -> str:
 
     raise HTTPException(status_code=400, detail="Tipo inválido fornecido.")
 
-##### USANDO BERT PARA CLASSIFICAÇÃO #######
-# # O BERT exige que os textos sejam tokenizados antes do treinamento
-# def tokenize_function(examples): 
-#     return tokenizer(examples["texto"], truncation=True, padding="max_length", max_length=256)
-
-# # Aplicar tokenização ao dataset
-# tokenized_dataset = dataset.map(tokenize_function, batched=True)
-
-# def classify_email(email_text):
-#     inputs = tokenizer(email_text, return_tensors="pt", truncation=True, padding="max_length", max_length=256)
-#     outputs = model(**inputs)
-#     prediction = outputs.logits.argmax().item()
-#     return "SPAM" if prediction == 1 else "Não-SPAM"
-
-#print(classify_email("Parabéns! Você ganhou um prêmio! Clique aqui para resgatar."))
+# Função para classificar emails como produtivos ou improdutivos
+def classify_email(msg: str) -> IsProductive:
+    inputs = tokenizer(msg, return_tensors="pt", padding=True, truncation=True)
+    outputs = model(**inputs)
+    prediction = torch.argmax(outputs.logits).item()
+    return IsProductive.PRODUCTIVE if prediction == 1 else IsProductive.IMPRODUCTIVE
 
 # Função de classificação
 def classify(msg: str) -> IsProductive:
@@ -169,18 +150,6 @@ def generate_response_gpt(content: str, classification: IsProductive) -> str:
 
     # Mostra a resposta da OpenAI para entender o erro
     raise HTTPException(status_code=response.status_code, detail=f"Erro OpenAI: {response.text}")
-
-# def generate_response_mistral(prompt: str, max_tokens: int = 100) -> str:
-#     messages = [
-#         {"role": "system", "content": "Você é um assistente de respostas automáticas para E-mails."},
-#         {"role": "user", "content": prompt}
-#     ]
-    
-#     response = chatbot(messages, max_new_tokens=max_tokens)
-
-#     if isinstance(response, list) and len(response) > 0:
-#         return response[0]["generated_text"]  # Retorna o texto gerado
-#     return "Resposta não encontrada."
 
 # Carregar o modelo .gguf
 def load_mistral_model(model_path: str):
@@ -216,7 +185,7 @@ mistral_model = load_mistral_model("./api/mistral-7b-instruct-v0.2.Q2_K.gguf")
 @router.post("/answer-mistral")
 async def answer_mistral(request: MessageRequest):
     """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B-v0.1 da Mistral AI."""
-    classification = classify(request.msg)  # Classifica a mensagem, como antes
+    classification = classify_email(request.msg)  # Classifica a mensagem, como antes
     print(f"Mensagem classificada como {classification.name}")
     
     # Gerar resposta com o modelo Mistral
@@ -229,12 +198,4 @@ async def answerGpt(request: MessageRequest):
     """Processa o conteúdo, classifica e gera uma resposta com o modelo gpt-3.5-turbo-0125 da OpenAI."""
     classification = classify(request.msg)
     return generate_response_gpt(request.msg, classification)
-
-# # Rota para responder ao usuário usando Mistral-7B
-# @router.post("/answer-mistral")
-# async def answerMistral(request: MessageRequest):
-#     """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B-v0.1 da Mistral AI."""
-#     classification = classify(request.msg)
-#     print(request.msg)
-#     return generate_response_mistral(request.msg)
 

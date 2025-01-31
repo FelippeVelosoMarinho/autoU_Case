@@ -1,0 +1,24 @@
+{
+  "services": {
+    "backend": {
+      "source": "./api",
+      "build": {
+        "builder": "NIXPACKS",
+        "buildCommand": "pip install -r requirements.txt"
+      },
+      "deploy": {
+        "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT"
+      }
+    },
+    "frontend": {
+      "source": "./client",
+      "build": {
+        "builder": "NIXPACKS",
+        "buildCommand": "npm install && npm run build"
+      },
+      "deploy": {
+        "startCommand": "npx serve -s build -l $PORT"
+      }
+    }
+  }
+}

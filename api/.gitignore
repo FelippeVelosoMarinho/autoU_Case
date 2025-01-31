@@ -1,8 +1,5 @@
 # Ignorar arquivos de configuração sensíveis
 .env
 
-# Ignorar pasta .mistral_model_old e seus conteúdos
-.mistral_model_old/*
-
 # Ignorar o modelo específico
 .mistral-7b-instruct-v0.2.Q2_K.gguf
