@@ -10,10 +10,12 @@ from classifier.routers import classifier_router
 load_dotenv()
 app = FastAPI()
 
+app_url = os.getenv("VITE_APP_URL")
+
 app.add_middleware(
     CORSMiddleware,
     #allow_origins=["http://localhost:5173"],  # Permite chamadas do frontend https://clientautoucase-production.up.railway.app/    allow_credentials=True,
-    allow_origins=["https://clientautoucase-production.up.railway.app"],
+    allow_origins=[app_url],
     allow_methods=["*"],  # Permite todos os métodos HTTP
     allow_headers=["*"],  # Permite todos os headers HTTP
 )
