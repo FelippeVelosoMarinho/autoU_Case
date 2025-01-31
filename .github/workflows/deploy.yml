@@ -1,0 +1,42 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main  # Ou outra branch de produção
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🚀 Checkout do código
+        uses: actions/checkout@v4
+
+      - name: 🔧 Configurar Node.js (para o frontend)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 📦 Instalar dependências do frontend
+        working-directory: client
+        run: |
+          npm install
+          npm run build
+
+      - name: 🐍 Configurar Python (para o backend)
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: 📦 Instalar dependências do backend
+        working-directory: api
+        run: |
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: 🚢 Deploy para Railway
+        uses: railwayapp/railway-deploy-action@main
+        with:
+          service: api  # Nome do serviço no Railway
+          token: 5665d45c-fcc5-49f0-b5b6-c8f3b2bb2a4e

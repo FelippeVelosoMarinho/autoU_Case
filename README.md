@@ -8,9 +8,9 @@ A estrutura do projeto é organizada da seguinte forma:
 
 autoU_Case/ <br>
 │<br>
-├── client/               # Código do Cliente (React + Vite)<br>
-├── api/                  # Código da API (FastAPI)<br>
-└── README.md             # Documentação do projeto
+├── client/               <br>
+├── api/                  <br>
+└── README.md             
 
 - **client/**: Diretório contendo o código do cliente da aplicação, desenvolvido com **React** e **Vite**.
 - **api/**: Diretório contendo a API da aplicação, construída com **FastAPI**.
