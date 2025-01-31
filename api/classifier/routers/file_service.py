@@ -1,24 +1,29 @@
-from fastapi import HTTPException
-import PyPDF2
+import pdfplumber
 
 from classifier.routers.classifier_model import TypeDoc
 
-# Função para processar o conteúdo do arquivo com base no tipo
-def process_file(file_path: str, file_type: TypeDoc) -> str:
-    """Processa arquivos PDF ou TXT e retorna seu conteúdo como string."""
-    if file_type == TypeDoc.PDF:
-        try:
-            with open(file_path, "rb") as pdf_file:
-                reader = PyPDF2.PdfReader(pdf_file)
-                return " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Erro ao processar PDF: {e}")
-    
-    elif file_type == TypeDoc.TXT:
-        try:
-            with open(file_path, "r", encoding="utf-8") as txt_file:
-                return txt_file.read()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Erro ao processar TXT: {e}")
-    
-    raise HTTPException(status_code=400, detail="Tipo de arquivo não suportado para processamento.")
+def txt_to_string(file_path: str) -> str:
+    """Converte um arquivo .txt para string."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        raise RuntimeError(f"Erro ao ler arquivo TXT: {e}")
+
+def pdf_to_string(file_path: str) -> str:
+    """Converte um arquivo PDF para string usando pdfplumber."""
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            text = "\n".join(page.extract_text() for page in pdf.pages if page.extract_text())
+        return text if text else "Nenhum texto extraído do PDF."
+    except Exception as e:
+        raise RuntimeError(f"Erro ao ler arquivo PDF: {e}")
+
+def is_valid_pdf(file_path: str) -> bool:
+    """Verifica se um arquivo é um PDF válido."""
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(4)
+        return header == b"%PDF"
+    except:
+        return False

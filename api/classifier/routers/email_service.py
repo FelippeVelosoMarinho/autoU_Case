@@ -3,14 +3,10 @@ import requests
 from fastapi import HTTPException
 from dotenv import load_dotenv
 
-from classifier.routers.classifier_model import IsProductive
-
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "mixtral-8x7b-32768"
-OPENAI_KEY = os.getenv("OPENAI_KEY")
-GPT_MODEL = "gpt-3.5-turbo-0125"
 
 def classify_email_groq(email_text: str) -> str:
     """Classifica um email como PRODUTIVO ou IMPRODUTIVO usando a API da Groq."""
@@ -84,29 +80,3 @@ def generate_response_groq(email_text: str, max_tokens: int = 100) -> dict:
         }
 
     raise HTTPException(status_code=response.status_code, detail=f"Erro na API da Groq: {response.text}")
-
-# Função para gerar resposta via OpenAI
-def generate_response_gpt(content: str, classification: IsProductive) -> str:
-    prompt = f"O seguinte conteúdo foi classificado como {classification.name.lower()}:\n\n{content}\n\nGere uma resposta curta e objetiva explicando o motivo."
-
-    headers = {
-        "Authorization": f"Bearer {OPENAI_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "model": GPT_MODEL,
-        "messages": [
-            {"role": "system", "content": "You are an assistant for answering e-mails."},
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 30
-    }
-
-    response = requests.post("https://api.openai.com/v1/chat/completions", json=data, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
-
-    # Mostra a resposta da OpenAI para entender o erro
-    raise HTTPException(status_code=response.status_code, detail=f"Erro OpenAI: {response.text}")
