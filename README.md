@@ -93,6 +93,13 @@ O cliente estará disponível em http://localhost:5173 dentro do container Docke
 
 A API estará disponível em http://localhost:8001 dentro do container Docker.
 
+## Deploy no Railway
+O projeto foi implementado e está em produção no Railway, facilitando o acesso tanto ao frontend quanto à API. A seguir, estão os links para as versões em produção:
+
+- **Documentação da API (FastAPI):** Acesse a documentação gerada pelo FastAPI aqui
+- **Frontend (Cliente em React):** Acesse o Frontend aqui
+Esses links proporcionam acesso à documentação interativa da API e à interface do cliente diretamente do ambiente de produção.
+
 # Requisitos
 ## Para o Cliente
 - Node.js (recomendado versão 16 ou superior)
