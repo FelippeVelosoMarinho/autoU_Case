@@ -22,53 +22,55 @@ tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
 OPENAI_KEY = os.getenv("OPENAI_KEY")
 HF_API_KEY = os.getenv("MISTRAL_KEY")
 GPT_MODEL = "gpt-3.5-turbo-0125"  # Modelo mais barato disponível
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = "mixtral-8x7b-32768"
 
 login(HF_API_KEY)
 
 # Carregar Tokenizer e Modelo BERT para Classificação
-tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
+# tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
 
-try:
-    model = AutoModelForSequenceClassification.from_pretrained("./bert-email-classifier")
-    print("Modelo BERT carregado com sucesso!")
-except Exception:
-    print("Modelo treinado não encontrado. Treinando um novo modelo...")
-    # Carregar e pré-processar os dados
-    df = pd.read_csv("emails.csv")
-    df = df.rename(columns={"EmailText": "text", "Label": "label"})
-    df["label"] = df["label"].map({"spam": 0, "ham": 1})  # 0 = improdutivo (spam), 1 = produtivo (ham)
+# try:
+#     model = AutoModelForSequenceClassification.from_pretrained("./bert-email-classifier")
+#     print("Modelo BERT carregado com sucesso!")
+# except Exception:
+#     print("Modelo treinado não encontrado. Treinando um novo modelo...")
+#     # Carregar e pré-processar os dados
+#     df = pd.read_csv("emails.csv")
+#     df = df.rename(columns={"EmailText": "text", "Label": "label"})
+#     df["label"] = df["label"].map({"spam": 0, "ham": 1})  # 0 = improdutivo (spam), 1 = produtivo (ham)
     
-    # Criar Dataset Hugging Face
-    dataset = Dataset.from_pandas(df)
-    train_test = dataset.train_test_split(test_size=0.2)
-    train_dataset, test_dataset = train_test["train"], train_test["test"]
+#     # Criar Dataset Hugging Face
+#     dataset = Dataset.from_pandas(df)
+#     train_test = dataset.train_test_split(test_size=0.2)
+#     train_dataset, test_dataset = train_test["train"], train_test["test"]
 
-    # Tokenização dos textos
-    def tokenize_function(examples):
-        return tokenizer(examples["text"], padding="max_length", truncation=True)
+#     # Tokenização dos textos
+#     def tokenize_function(examples):
+#         return tokenizer(examples["text"], padding="max_length", truncation=True)
 
-    train_dataset = train_dataset.map(tokenize_function, batched=True)
-    test_dataset = test_dataset.map(tokenize_function, batched=True)
+#     train_dataset = train_dataset.map(tokenize_function, batched=True)
+#     test_dataset = test_dataset.map(tokenize_function, batched=True)
 
-    # Configurar treinamento
-    training_args = TrainingArguments(
-        output_dir="./results",
-        evaluation_strategy="epoch",
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=3,
-        weight_decay=0.01,
-        save_strategy="epoch",
-    )
+#     # Configurar treinamento
+#     training_args = TrainingArguments(
+#         output_dir="./results",
+#         evaluation_strategy="epoch",
+#         per_device_train_batch_size=8,
+#         per_device_eval_batch_size=8,
+#         num_train_epochs=3,
+#         weight_decay=0.01,
+#         save_strategy="epoch",
+#     )
 
-    model = AutoModelForSequenceClassification.from_pretrained(BERT_MODEL_NAME, num_labels=2)
-    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=test_dataset)
+#     model = AutoModelForSequenceClassification.from_pretrained(BERT_MODEL_NAME, num_labels=2)
+#     trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=test_dataset)
 
-    # Treinar o modelo
-    trainer.train()
+#     # Treinar o modelo
+#     trainer.train()
 
-    # Salvar o modelo treinado
-    model.save_pretrained("./bert-email-classifier")
+#     # Salvar o modelo treinado
+#     model.save_pretrained("./bert-email-classifier")
 # Definição do modelo para aceitar JSON
 class MessageRequest(BaseModel):
     msg: str
@@ -115,15 +117,78 @@ async def read(msg: Union[str, UploadFile], type: TypeDoc) -> str:
     raise HTTPException(status_code=400, detail="Tipo inválido fornecido.")
 
 # Função para classificar emails como produtivos ou improdutivos
-def classify_email(msg: str) -> IsProductive:
-    inputs = tokenizer(msg, return_tensors="pt", padding=True, truncation=True)
-    outputs = model(**inputs)
-    prediction = torch.argmax(outputs.logits).item()
-    return IsProductive.PRODUCTIVE if prediction == 1 else IsProductive.IMPRODUCTIVE
+# def classify_email(msg: str) -> IsProductive:
+#     inputs = tokenizer(msg, return_tensors="pt", padding=True, truncation=True)
+#     outputs = model(**inputs)
+#     prediction = torch.argmax(outputs.logits).item()
+#     return IsProductive.PRODUCTIVE if prediction == 1 else IsProductive.IMPRODUCTIVE
 
 # Função de classificação
 def classify(msg: str) -> IsProductive:
     return IsProductive.PRODUCTIVE if len(msg.strip()) > 50 else IsProductive.IMPRODUCTIVE
+
+def classify_email_groq(email_text: str) -> str:
+    """Classifica um email como PRODUTIVO ou IMPRODUTIVO usando a API da Groq."""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    # Definir um prompt claro para classificar emails
+    prompt = f"""
+    Você é um assistente especializado em classificar emails como produtivos ou improdutivos. 
+    - Um email **produtivo** contém informações úteis, como atualizações de trabalho, reuniões ou tarefas importantes. 
+    - Um email **improdutivo** contém spam, promoções irrelevantes ou conteúdo que não agrega valor ao trabalho.
+
+    Classifique o seguinte email apenas com 'PRODUTIVO' ou 'IMPRODUTIVO':
+
+    ---
+    {email_text}
+    ---
+    
+    Responda apenas com 'PRODUTIVO' ou 'IMPRODUTIVO', sem explicações adicionais.
+    """
+
+    data = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": "Você é um assistente para classificar emails."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 10
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"].strip()
+
+    raise HTTPException(status_code=response.status_code, detail=f"Erro na API da Groq: {response.text}")
+
+
+def generate_response_groq(prompt: str, max_tokens: int = 100) -> str:
+    """Envia uma requisição para a API da Groq e retorna a resposta gerada."""
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": "Você é um assistente para responder E-mails."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": max_tokens
+    }
+
+    response = requests.post(url, json=data, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+
+    raise HTTPException(status_code=response.status_code, detail=f"Erro na API da Groq: {response.text}")
 
 # Função para gerar resposta via OpenAI
 def generate_response_gpt(content: str, classification: IsProductive) -> str:
@@ -179,17 +244,18 @@ def generate_response_mistral(prompt: str, model, max_tokens: int = 100) -> str:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar resposta com o modelo Mistral: {e}")
 
 # Inicialize o modelo fora das rotas para evitar carregar o modelo toda vez que a rota for chamada
-mistral_model = load_mistral_model("./api/mistral-7b-instruct-v0.2.Q2_K.gguf")
+#mistral_model = load_mistral_model("./api/mistral-7b-instruct-v0.2.Q2_K.gguf")
 
 # Rota para responder ao usuário usando Mistral-7B
 @router.post("/answer-mistral")
 async def answer_mistral(request: MessageRequest):
     """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B-v0.1 da Mistral AI."""
-    classification = classify_email(request.msg)  # Classifica a mensagem, como antes
-    print(f"Mensagem classificada como {classification.name}")
+    classification = classify_email_groq(request.msg)  # Classifica a mensagem, como antes
+    print(f"Mensagem classificada como {classification}")
     
     # Gerar resposta com o modelo Mistral
-    response = generate_response_mistral(request.msg, mistral_model)
+    #response = generate_response_mistral(request.msg, mistral_model)
+    response = generate_response_groq(request.msg)
     return {"response": response}
 
 # Rota para responder ao usuário usando gpt
