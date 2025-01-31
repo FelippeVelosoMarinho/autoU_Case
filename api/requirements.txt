@@ -8,6 +8,7 @@ datasets==3.2.0
 python-dotenv==1.0.1
 PyPDF2==3.0.1
 huggingface_hub==0.28.1
+hypercorn==0.13.1 
 
 # TEST
 pytest==7.1.2
