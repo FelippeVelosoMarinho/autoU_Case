@@ -1,0 +1,20 @@
+services:
+  frontend-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"  # Map the container's port 3000 to the host's port 8080
+    network_mode: "host"  # Set the network mode to "host"
+    # entrypoint: /entrypoint.sh 
+    volumes:
+      
+      # Mount the server directory on the host into /app/server within the container
+      - ./src:/app/src
+
+      - ./public:/app/public
+      
+      - ./api:/app/api
+        
+    # command: [sh, -c, 'npm run dev']
+    command: [sh, -c, 'npm run dev']
