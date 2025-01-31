@@ -10,9 +10,11 @@ import {
     CssBaseline,
     Stack,
     CircularProgress,
+    IconButton,
 } from "@mui/material";
 import { useDropzone } from "react-dropzone";
 import { verifyEmail } from "../services/Requests/Classifier/verifyEmail";
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const Home: React.FC = () => {
     const theme = useTheme();
@@ -21,6 +23,7 @@ const Home: React.FC = () => {
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [suggestion, setSuggestion] = useState<string>("");
+    const [classification, setClassification] = useState<string>("");
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -41,30 +44,40 @@ const Home: React.FC = () => {
     });
 
     const handleVerifyEmail = async () => {
-        
         setLoading(true);
         setSuggestion("");
+        setClassification("");
+
         try {
             let response;
-            console.log(inputType, " vazia")
             if (inputType === "text") {
                 response = await verifyEmail({ msg: emailContent, type: "STR" });
-                console.log(response.response, " -> AQUI")
             } else if (uploadedFile) {
                 const fileType = uploadedFile.type.includes("pdf") ? "PDF" : "TXT";
                 response = await verifyEmail({ type: fileType, file: uploadedFile });
             }
-            console.log(response.response, " -> AQUI")
+    
+            // Atualiza a sugestão e classificação
             setSuggestion(response?.response || "Nenhuma sugestão gerada.");
+            setClassification(response?.classification || "Desconhecido");
         } catch (error) {
             setSuggestion("Erro ao processar a solicitação.");
+            console.log(error);
         } finally {
             setLoading(false);
         }
     };
 
+    const handleCopySuggestion = () => {
+        navigator.clipboard.writeText(suggestion)
+            .then(() => alert("Sugestão copiada para a área de transferência!"))
+            .catch(() => alert("Erro ao copiar a sugestão."));
+    };
+
+    const classificationColor = classification === "PRODUTIVO" ? "green" : classification === "IMPRODUTIVO" ? "red" : "black";
+
     return (
-        <Stack sx={{ display: "flex", width: "100%", height: "100vh", justifyContent: "center" }}>
+        <Stack sx={{ display: "flex", width: "100%", height: "100vh", justifyContent: "center", bgcolor: theme.palette.background.default }}>
             <Container
                 maxWidth="sm"
                 sx={{
@@ -139,9 +152,22 @@ const Home: React.FC = () => {
                     {loading ? <CircularProgress size={24} color="inherit" /> : "Verificar Email"}
                 </Button>
                 {suggestion && (
-                    <Paper sx={{ mt: 2, p: 2, width: "100%" }}>
+                    <Paper sx={{ mt: 2, p: 2, width: "100%", bgcolor: theme.palette.background.default }}>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                            <Typography
+                                variant="subtitle1"
+                                sx={{ color: classificationColor }}
+                            >
+                                Classificação: {classification}
+                            </Typography>
+                            <IconButton onClick={handleCopySuggestion} sx={{ color: 'black' }}>
+                                <ContentCopyIcon />
+                            </IconButton>
+                        </Stack>
+
                         <Typography variant="subtitle1">Sugestão de Resposta:</Typography>
                         <Typography variant="body2">{suggestion}</Typography>
+
                     </Paper>
                 )}
             </Container>

@@ -9,16 +9,17 @@ interface VerifyEmailProps {
 export async function verifyEmail({ msg, type, file }: VerifyEmailProps) {
     try {
         let response;
+        console.log(type);
 
         if (type === "STR") {
+            // Enviar texto diretamente para a API correta
             response = await api.post("/classifier/answer-mistral", { msg, type });
-            console.log(response);
         } else if (file) {
             const formData = new FormData();
-            formData.append("msg", file);
-            formData.append("type", type);
+            formData.append("file", file);
 
-            response = await api.post("/classifier/answer-mistral", formData, {
+            // Enviar arquivo para a rota específica de documentos
+            response = await api.post("/classifier/answer-mistral-docs", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
         } else {
