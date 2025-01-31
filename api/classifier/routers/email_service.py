@@ -38,7 +38,7 @@ def classify_email_groq(email_text: str) -> str:
     data = {
         "model": GROQ_MODEL,
         "messages": [
-            {"role": "system", "content": "Você é um assistente para classificar emails."},
+            {"role": "system", "content": "You are an assistant for answering e-mails."},
             {"role": "user", "content": prompt}
         ],
         "max_tokens": 10
@@ -52,13 +52,19 @@ def classify_email_groq(email_text: str) -> str:
     raise HTTPException(status_code=response.status_code, detail=f"Erro na API da Groq: {response.text}")
 
 
-def generate_response_groq(prompt: str, max_tokens: int = 100) -> str:
-    """Envia uma requisição para a API da Groq e retorna a resposta gerada."""
+def generate_response_groq(email_text: str, max_tokens: int = 100) -> dict:
+    """Classifica o e-mail e gera uma resposta usando a API da Groq."""
+    # Primeiro, classifica o e-mail
+    classification = classify_email_groq(email_text)
+
+    # Agora, gera a resposta
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+    prompt = f"O seguinte e-mail foi classificado como {classification.lower()}:\n\n{email_text}\n\nGere uma resposta curta e objetiva."
+
     data = {
         "model": GROQ_MODEL,
         "messages": [
@@ -71,7 +77,11 @@ def generate_response_groq(prompt: str, max_tokens: int = 100) -> str:
     response = requests.post(url, json=data, headers=headers)
 
     if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
+        generated_text = response.json()["choices"][0]["message"]["content"]
+        return {
+            "classification": classification,
+            "response": generated_text
+        }
 
     raise HTTPException(status_code=response.status_code, detail=f"Erro na API da Groq: {response.text}")
 

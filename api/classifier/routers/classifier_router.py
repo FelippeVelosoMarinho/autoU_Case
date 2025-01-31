@@ -28,13 +28,13 @@ async def read(msg: Union[str, UploadFile], type: TypeDoc) -> str:
 # Rota para responder ao usuário usando Mistral-7B
 @router.post("/answer-mistral")
 async def answer_mistral(request: MessageRequest):
-    """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B-v0.1 da Mistral AI."""
-    classification = classify_email_groq(request.msg)  # Classifica a mensagem, como antes
-    print(f"Mensagem classificada como {classification}")
-    
-    # Gerar resposta com o modelo Mistral
-    response = generate_response_groq(request.msg)
-    return {"response": response}
+    """Processa o conteúdo, classifica e gera uma resposta com o modelo Mistral-7B."""
+    result = generate_response_groq(request.msg)  # Obtém classificação e resposta
+
+    return {
+        "classification": result["classification"],
+        "response": result["response"]
+    }
 
 # Rota para responder ao usuário usando gpt
 @router.post("/answer-gpt")
