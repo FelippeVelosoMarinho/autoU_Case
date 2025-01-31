@@ -9,6 +9,7 @@ import {
     useTheme,
     CssBaseline,
     Stack,
+    CircularProgress,
 } from "@mui/material";
 import { useDropzone } from "react-dropzone";
 import { verifyEmail } from "../services/Requests/Classifier/verifyEmail";
@@ -18,6 +19,8 @@ const Home: React.FC = () => {
     const [inputType, setInputType] = useState<"text" | "file">("text");
     const [emailContent, setEmailContent] = useState<string>("");
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [suggestion, setSuggestion] = useState<string>("");
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         const file = acceptedFiles[0];
@@ -38,11 +41,25 @@ const Home: React.FC = () => {
     });
 
     const handleVerifyEmail = async () => {
-        if (inputType === "text") {
-            await verifyEmail({ msg: emailContent, type: "STR" });
-        } else if (uploadedFile) {
-            const fileType = uploadedFile.type.includes("pdf") ? "PDF" : "TXT";
-            await verifyEmail({ type: fileType, file: uploadedFile });
+        
+        setLoading(true);
+        setSuggestion("");
+        try {
+            let response;
+            console.log(inputType, " vazia")
+            if (inputType === "text") {
+                response = await verifyEmail({ msg: emailContent, type: "STR" });
+                console.log(response.response, " -> AQUI")
+            } else if (uploadedFile) {
+                const fileType = uploadedFile.type.includes("pdf") ? "PDF" : "TXT";
+                response = await verifyEmail({ type: fileType, file: uploadedFile });
+            }
+            console.log(response.response, " -> AQUI")
+            setSuggestion(response?.response || "Nenhuma sugestão gerada.");
+        } catch (error) {
+            setSuggestion("Erro ao processar a solicitação.");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -112,12 +129,23 @@ const Home: React.FC = () => {
                         )}
                     </Paper>
                 )}
-                <Button variant="contained" color="primary" sx={{ mt: 2, width: "100%" }} onClick={handleVerifyEmail}>
-                    Verificar Email
+                <Button
+                    variant="contained"
+                    color="primary"
+                    sx={{ mt: 2, width: "100%" }}
+                    onClick={handleVerifyEmail}
+                    disabled={loading}
+                >
+                    {loading ? <CircularProgress size={24} color="inherit" /> : "Verificar Email"}
                 </Button>
+                {suggestion && (
+                    <Paper sx={{ mt: 2, p: 2, width: "100%" }}>
+                        <Typography variant="subtitle1">Sugestão de Resposta:</Typography>
+                        <Typography variant="body2">{suggestion}</Typography>
+                    </Paper>
+                )}
             </Container>
         </Stack>
-
     );
 };
 

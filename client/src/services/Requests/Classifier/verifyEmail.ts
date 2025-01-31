@@ -11,13 +11,14 @@ export async function verifyEmail({ msg, type, file }: VerifyEmailProps) {
         let response;
 
         if (type === "STR") {
-            response = await api.post("/classifier/answer", { msg, type });
+            response = await api.post("/classifier/answer-mistral", { msg, type });
+            console.log(response);
         } else if (file) {
             const formData = new FormData();
             formData.append("msg", file);
             formData.append("type", type);
 
-            response = await api.post("/classifier/answer", formData, {
+            response = await api.post("/classifier/answer-mistral", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
         } else {
