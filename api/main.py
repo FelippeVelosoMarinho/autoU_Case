@@ -12,8 +12,8 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Permite chamadas do frontend
-    allow_credentials=True,
+    #allow_origins=["http://localhost:5173"],  # Permite chamadas do frontend https://clientautoucase-production.up.railway.app/    allow_credentials=True,
+    allow_origins=["https://clientautoucase-production.up.railway.app/"],
     allow_methods=["*"],  # Permite todos os métodos HTTP
     allow_headers=["*"],  # Permite todos os headers HTTP
 )
