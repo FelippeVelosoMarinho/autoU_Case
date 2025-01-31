@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  # API Backend
+  api:
+    build: ./api
+    container_name: fastapi_app
+    restart: always
+    ports:
+      - "8000:8000"  # Expondo a porta 8000 para a API
+    volumes:
+      - ./api:/app
+    env_file:
+      - ./api/.env  # Arquivo de variáveis de ambiente
+
+  # Frontend App (React/Vite)
+  frontend-app:
+    build:
+      context: ./client  # Build do frontend
+      dockerfile: Dockerfile  # Usando o Dockerfile dentro do diretório
+    ports:
+      - "5173:5173"  # Expondo a porta 5173 para o frontend
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+      - ./api:/app/api
+    depends_on:
+      - api  # Frontend depende da API
+    command: [sh, -c, 'npm run dev']  # Comando para rodar o frontend
