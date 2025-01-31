@@ -120,8 +120,6 @@ Este projeto tem como objetivo a automação da leitura e classificação de ema
 - **Improdutivo**: Emails que não requerem uma ação imediata, como mensagens de felicitações, agradecimentos ou conteúdos irrelevantes.
 
 # Referências
-
-- [Case Prático AutoU - Estágio de Produtos Digitais AI](https://thunder-seatbelt-d29.notion.site/Case-Pr-tico-AutoU-Estagi-rio-de-Produtos-Digitais-AI-189e899741ea8017974ffc7a6ff92b1a)
 - [PrimeReact FileUpload](https://primereact.org/fileupload/)
 - [BERT - Hugging Face Transformers](https://huggingface.co/docs/transformers/model_doc/bert)
 - [OpenAI SPAM Classifier](https://www.geeksforgeeks.org/spam-classification-using-openai/)
