@@ -21,3 +21,8 @@ class TypeDoc(str, Enum):
 class Classifier(BaseModel):
     msg: Union[str, UploadFile]  # Pode ser uma string ou arquivo enviado
     type: TypeDoc  # Tipo do documento
+    
+# DTo para Request
+class MessageRequest(BaseModel):
+    msg: str
+    type: TypeDoc

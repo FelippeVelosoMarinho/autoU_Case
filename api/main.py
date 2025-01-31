@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import os
 import requests
 
-from contas_a_pagar_e_receber.routers import contas_a_pagar_e_receber_router
 from classifier.routers import classifier_router
 
 load_dotenv()
@@ -32,7 +31,6 @@ def hello() -> str:
         print(requisicao.text)
         return "OIIII"
     
-app.include_router(contas_a_pagar_e_receber_router.router)
 app.include_router(classifier_router.router)
 
 if __name__  == "__main__":
